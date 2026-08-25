@@ -1,0 +1,125 @@
+---
+title: "Evolution of the population aged 65 and over up to 2100"
+output:
+  html_document:
+    self_contained: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+
+library(shiny)
+library(bs4Dash)
+library(DT)
+library(highcharter)
+library(htmltools)
+library(fresh)
+library(RCurl)
+library(geodata)
+library(raster)
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(leaflet)
+library(RColorBrewer)
+library(shinyjs)
+```
+
+```{r}
+
+fix_mojibake <- function(x) {
+  if (!is.character(x)) return(x)
+  
+  y <- iconv(x, from = "UTF-8", to = "latin1", sub = "byte")
+  # y contient maintenant les octets originaux (ceux du fichier source)
+  # on les redéclare comme UTF-8 au lieu de les reconvertir
+  Encoding(y) <- "UTF-8"
+  
+  # sécurité : si la conversion a produit NA sur des valeurs non-NA
+  # (chaîne pas réellement mal encodée), on garde l'original
+  ifelse(is.na(y) & !is.na(x), x, y)
+}
+
+df_pop2100_65plus <- read.csv(text = getURL("https://raw.githubusercontent.com/MathieuScheffer/Projet-Hackaton/Resources/df_pop2100_65plus.csv"))
+df_pop2100_65plus$projection <- fix_mojibake(df_pop2100_65plus$projection)
+
+df_pop2100_65plus <- df_pop2100_65plus %>%
+  mutate(
+    projection = recode(
+      projection,
+      "Historique"       = "Historical",
+      "Ligne de base"    = "Baseline",
+      "Forte migration"  = "High migration",
+      "Faible fertilité" = "Low fertility",
+      "Faible migration" = "Low migration",
+      "Forte fertilité"  = "High fertility"
+    )
+  )
+
+highchart() %>%
+  hc_chart(type = "line") %>%
+
+  hc_xAxis(
+    plotLines = list(
+      list(
+        color = "#000000",
+        width = 2,
+        value = 2024,
+        dashstyle = "Dash",
+        label = list(
+          text = "End of historical data",
+          verticalAlign = "top",
+          textAlign = "left"
+        )
+      )
+    )
+  ) %>%
+  
+  hc_yAxis(
+    title = list(
+      text = "Number of people"
+    )
+  ) %>%
+  
+  hc_tooltip(
+    shared = TRUE,
+    crosshairs = TRUE,
+    valueDecimals = 0
+  ) %>%
+  
+  hc_add_series_list(
+    df_pop2100_65plus %>%
+      group_split(projection) %>%
+      map(
+        ~ list(
+          name = unique(.x$projection),
+          data = list_parse2(
+            .x %>%
+              dplyr::select(
+                x = year,
+                y = population
+              )
+          ),
+          dashStyle = ifelse(
+            unique(.x$projection) == "Historical",
+            "Solid",
+            "Dash"
+          )
+        )
+      )
+  ) %>%
+  
+  hc_plotOptions(
+    series = list(
+      marker = list(
+        enabled = FALSE
+      )
+    )
+  )
+
+```

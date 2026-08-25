@@ -1,0 +1,103 @@
+---
+title: "Percentage of immigrants by canton in Luxembourg"
+output:
+  html_document:
+    self_contained: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+
+library(sf)
+library(dplyr)
+library(RCurl)
+library(leaflet)
+library(RColorBrewer)
+library(htmltools)
+```
+
+```{r}
+
+# Données STATEC
+df_ratio2_tf <- read.csv(text = getURL("https://raw.githubusercontent.com/MathieuScheffer/Projet-Hackaton/Resources/df_ratio2_tf.csv"))
+
+# Import des cantons du Luxembourg depuis le GeoJSON officiel
+lu_sf <- sf::st_read(
+  "https://download.data.public.lu/resources/cantons-in-luxembourg-2026/20260121-020309/cantons-lux-2026.geojson",
+  quiet = TRUE
+)
+
+# Renommage des cantons pour correspondre aux labels STATEC
+lu_sf$name <- dplyr::recode(
+  lu_sf$name,
+  "Clervaux" = "Canton Clervaux",
+  "Diekirch" = "Canton Diekirch",
+  "Redange" = "Canton Redange",
+  "Vianden" = "Canton Vianden",
+  "Wiltz" = "Canton Wiltz",
+  "Echternach" = "Canton Echternach",
+  "Grevenmacher" = "Canton Grevenmacher",
+  "Remich" = "Canton Remich",
+  "Capellen" = "Canton Capellen",
+  "Esch-sur-Alzette" = "Canton Esch",
+  "Luxembourg" = "Canton Luxembourg",
+  "Mersch" = "Canton Mersch"
+)
+
+# Creation du 2eme leaflet par canton - % immigrés par canton
+lu_sf_ratio2 <- lu_sf %>%
+  left_join(
+    df_ratio2_tf,
+    by = c("name" = "geo_name_fr")
+  )
+
+lu_sf_ratio2$immigre <- as.numeric(
+  gsub(",", ".", lu_sf_ratio2$immigre)
+)
+
+pal_ratio2 <- colorNumeric(
+  palette = RColorBrewer::brewer.pal(9, "Greens")[3:9],
+  domain = lu_sf_ratio2$immigre,
+  na.color = "transparent"
+)
+
+lu_sf_ratio2$immigre_label <- paste0(
+  "<strong>", lu_sf_ratio2$name, "</strong><br/>",
+  "% of immigrants : ",
+  ifelse(
+    is.na(lu_sf_ratio2$immigre),
+    "NA",
+    paste0(round(lu_sf_ratio2$immigre, 1), "%")
+  )
+)
+
+leaflet(lu_sf_ratio2) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(
+    fillColor = ~pal_ratio2(immigre),
+    weight = 1,
+    color = "white",
+    fillOpacity = 0.8,
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      bringToFront = TRUE
+    ),
+    label = lapply(lu_sf_ratio2$immigre_label, HTML)
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal_ratio2,
+    values = ~immigre,
+    title = "% of immigrants",
+    labFormat = labelFormat(suffix = "%"),
+    opacity = 0.9
+  )
+
+
+```

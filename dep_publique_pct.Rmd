@@ -1,0 +1,104 @@
+---
+title: "Evolution of public expenditure in Luxembourg (%)"
+output:
+  html_document:
+    self_contained: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+
+library(shiny)
+library(bs4Dash)
+library(DT)
+library(highcharter)
+library(htmltools)
+library(fresh)
+library(RCurl)
+library(geodata)
+library(raster)
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(leaflet)
+library(RColorBrewer)
+library(shinyjs)
+```
+
+```{r}
+
+fix_mojibake <- function(x) {
+  if (!is.character(x)) return(x)
+  
+  y <- iconv(x, from = "UTF-8", to = "latin1", sub = "byte")
+  # y contient maintenant les octets originaux (ceux du fichier source)
+  # on les redéclare comme UTF-8 au lieu de les reconvertir
+  Encoding(y) <- "UTF-8"
+  
+  # sécurité : si la conversion a produit NA sur des valeurs non-NA
+  # (chaîne pas réellement mal encodée), on garde l'original
+  ifelse(is.na(y) & !is.na(x), x, y)
+}
+
+df_depense_publique_cate <- read.csv(text = getURL("https://raw.githubusercontent.com/MathieuScheffer/Projet-Hackaton/Resources/df_depense_publique_cate.csv")) %>%
+  dplyr::rename(`Autres dépenses` = "Autres.dépenses",
+                `Autres dépenses sociales` = "Autres.dépenses.sociales")
+
+df_depense_publique_cate <- df_depense_publique_cate %>%
+  rename(
+    Health = Santé,
+    `Old age` = Vieillesse,
+    `Other social expenditure` = `Autres dépenses sociales`,
+    `Other expenditure` = `Autres dépenses`
+  )
+
+
+highchart() %>%
+  hc_chart(type = "column") %>%
+  
+  hc_xAxis(
+    categories = df_depense_publique_cate$TIME_PERIOD
+  ) %>%
+  
+  hc_yAxis(
+    title = list(text = "% of total"),
+    min = 0,
+    max = 100
+  ) %>%
+  
+  hc_plotOptions(
+    column = list(
+      stacking = "normal"
+    )
+  ) %>%
+  
+  hc_add_series(
+    name = "Health",
+    data = df_depense_publique_cate$Health,
+    color = "#4daf4a"
+  ) %>%
+  
+  hc_add_series(
+    name = "Old age",
+    data = df_depense_publique_cate$`Old age`,
+    color = "#e41a1c"
+  ) %>%
+  
+  hc_add_series(
+    name = "Other social expenditure",
+    data = df_depense_publique_cate$`Other social expenditure`,
+    color = "#377eb8"
+  ) %>%
+  
+  hc_add_series(
+    name = "Other expenditure",
+    data = df_depense_publique_cate$`Other expenditure`,
+    color = "#27F5EE"
+  )
+
+```
